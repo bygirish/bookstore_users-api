@@ -27,6 +27,6 @@ func ParseError(err error) *errors.RestErr {
 		return errors.NewBadRequestError("invalid data")
 	}
 
-	return errors.NewInternalServerError("error processing requirest")
+	return errors.NewInternalServerError("error processing request")
 
 }

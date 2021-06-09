@@ -2,10 +2,26 @@ package services
 
 import (
 	"github.com/bygirish/bookstore_users-api/domain/users"
+	"github.com/bygirish/bookstore_users-api/utils/crypto_utils"
+	"github.com/bygirish/bookstore_users-api/utils/date_utils"
 	"github.com/bygirish/bookstore_users-api/utils/errors"
 )
 
-func GetUser(userId int64) (*users.User, *errors.RestErr) {
+var (
+	UserService usersServiceInterface = &userService{}
+)
+
+type userService struct{}
+
+type usersServiceInterface interface {
+	GetUser(int64) (*users.User, *errors.RestErr)
+	CreateUser(users.User) (*users.User, *errors.RestErr)
+	UpdateUser(bool, users.User) (*users.User, *errors.RestErr)
+	DeleteUser(int64) *errors.RestErr
+	SearchUser(string) (users.Users, *errors.RestErr)
+}
+
+func (s *userService) GetUser(userId int64) (*users.User, *errors.RestErr) {
 
 	result := &users.User{Id: userId}
 
@@ -17,12 +33,15 @@ func GetUser(userId int64) (*users.User, *errors.RestErr) {
 
 }
 
-func CreateUser(user users.User) (*users.User, *errors.RestErr) {
+func (s *userService) CreateUser(user users.User) (*users.User, *errors.RestErr) {
 
 	if err := user.Validate(); err != nil {
 		return nil, err
 	}
 
+	user.Status = users.StatusActive
+	user.DateCreated = date_utils.GetNowDBFormat()
+	user.Password = crypto_utils.GetMd5(user.Password)
 	if err := user.Save(); err != nil {
 		return nil, err
 	}
@@ -30,14 +49,10 @@ func CreateUser(user users.User) (*users.User, *errors.RestErr) {
 	return &user, nil
 }
 
-func UpdateUser(isPartial bool, user users.User) (*users.User, *errors.RestErr) {
+func (s *userService) UpdateUser(isPartial bool, user users.User) (*users.User, *errors.RestErr) {
 
-	current, err := GetUser(user.Id)
+	current, err := s.GetUser(user.Id)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := user.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -53,6 +68,10 @@ func UpdateUser(isPartial bool, user users.User) (*users.User, *errors.RestErr) 
 		}
 
 	} else {
+		if err := user.Validate(); err != nil {
+			return nil, err
+		}
+
 		current.FirstName = user.FirstName
 		current.LastName = user.LastName
 		current.Email = user.Email
@@ -62,4 +81,19 @@ func UpdateUser(isPartial bool, user users.User) (*users.User, *errors.RestErr) 
 		return nil, err
 	}
 	return current, nil
+}
+
+func (s *userService) DeleteUser(userId int64) *errors.RestErr {
+
+	current, err := s.GetUser(userId)
+	if err != nil {
+		return err
+	}
+
+	return current.Delete()
+}
+
+func (s *userService) SearchUser(status string) (users.Users, *errors.RestErr) {
+	dao := &users.User{}
+	return dao.FindBystatus(status)
 }
